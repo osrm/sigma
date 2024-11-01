@@ -15,7 +15,7 @@ const Home: NextPage = () => {
   return (
     <div className={styles.container}>
       <Head>
-        <title>USDC Bridge</title>
+        <title>Windfall for EVM</title>
         <link href="/favicon.ico" rel="icon" />
       </Head>
 

@@ -103,7 +103,7 @@
 
 .container {
   min-height: 100vh;
-  /* Solanaっぽいグラデーション */
+  /* Solana-like gradient */
   background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
   padding: 20px;
 }
@@ -142,15 +142,6 @@
   margin: 0 0 20px 0;
 }
 
-/* .inputContainer {
-  display: flex;
-  align-items: center;
-  background: #f5f5f5;
-  border-radius: 8px;
-  padding: 8px 16px;
-  margin-bottom: 16px;
-} */
-
 .inputContainer input {
   flex: 1;
   border: none;
@@ -167,7 +158,7 @@
 .bridgeButton {
   width: 100%;
   padding: 12px;
-  /* Solanaのプライマリーカラー */
+  /* Solana's primary color */
   background: #9945FF;
   color: white;
   border: none;
@@ -185,7 +176,7 @@
 .inputContainer {
   display: flex;
   align-items: center;
-  /* より洗練された入力欄 */
+  /* More sophisticated input field */
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(153, 69, 255, 0.2);
   border-radius: 8px;
@@ -198,7 +189,7 @@
   right: 20px;
   bottom: 20px;
   width: 400px;
-  /* 最大高さを設定（画面の70%を超えないように） */
+  /* Set maximum height (not to exceed 70% of screen height) */
   max-height: 70vh;
   background: rgba(19, 22, 35, 0.9);
   border-radius: 12px;
@@ -206,14 +197,14 @@
   padding: 16px;
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  /* コンテンツがはみ出した時の挙動を制御 */
+  /* Control behavior when content overflows */
   display: flex;
   flex-direction: column;
 }
 
 .console h3 {
   margin: 0 0 12px 0;
-  /* タイトルを固定 */
+  /* Fixed title */
   flex-shrink: 0;
 }
 
@@ -221,9 +212,9 @@
   font-family: monospace;
   font-size: 0.9rem;
   white-space: pre-wrap;
-  /* スクロール可能に */
+  /* Enable scrolling */
   overflow-y: auto;
-  /* 新しい出力を下に表示 */
+  /* Display new output at the bottom */
   display: flex;
   flex-direction: column-reverse;
 }
