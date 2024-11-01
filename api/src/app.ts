@@ -134,10 +134,11 @@ app.put('/wallet/:address', async (req: Request, res: Response) => {
     }
 });
 
-
 app.post('/sign', async (req: Request, res: Response) => {
     try {
-        const { transactionBase64, walletId } = req.body;
+        const { transactionBase64, walletId, description } = req.body;
+
+        console.log(`POST /sign`);
 
         if (!transactionBase64 || !walletId) {
             res.status(400).json({
@@ -146,39 +147,25 @@ app.post('/sign', async (req: Request, res: Response) => {
             return;
         }
 
-        console.log(`endpoint /sign: ${walletId}, ${transactionBase64}`, req.body);
-        res.send('Thank you');
+        const wallet = await circleClient.getWallet({id: walletId});
 
-        // const { DeveloperControlledWallets } = require('@circle-fin/developer-controlled-wallets');
-        // const { Transaction } = require('@solana/web3.js');
+        const result = await circleClient.signTransaction({
+            walletId,
+            rawTransaction: transactionBase64,
+            memo: description,
+        });
 
-        // // Initialize Circle's Developer Controlled Wallets
-        // const dcw = new DeveloperControlledWallets();
-
-        // // Decode base64 transaction
-        // const transactionBuffer = Buffer.from(transactionBase64, 'base64');
-        // const transaction = Transaction.from(transactionBuffer);
-
-        // // Sign the transaction
-        // const signResponse = await dcw.signTransaction({
-        //     walletId: walletId,
-        //     transaction: transaction
-        // });
-
-        // // Return the wallet pubkey and signature
-        // res.json({
-        //     publicKey: signResponse.publicKey.toString(),
-        //     signature: signResponse.signature
-        // });
-
+        res.json({
+            pubkey: wallet.data?.wallet.address,
+            signature: result.data?.signature,
+            transaction: result.data?.signedTransaction,
+        });
     } catch (error) {
         console.error('Error signing transaction:', error);
         res.status(500).json({
             error: 'Failed to sign transaction',
-            // details: error.message 
         });
     }
 });
-
 
 export default app;
