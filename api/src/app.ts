@@ -52,6 +52,11 @@ async function findUnassociatedWallet() {
     return undefined;
 }
 
+function trimName(name: string) {
+    // wallet name must be shorter than 50 characters.
+    return name.substring(0, 32) + "...";
+}
+
 const app = express();
 app.use(express.json());
 
@@ -61,66 +66,70 @@ app.get('/', (req, res) => {
 
 // Search for a wallet associated with the address.
 // If not found, associate the address with a new wallet, and return the wallet ID in either case.
-app.get('/wallet', async (req: Request, res: Response) => {
+app.get('/wallet/:address', async (req: Request, res: Response) => {
     try {
-        const { address } = req.query;
+        const address = req.params.address;
 
-        console.log(`GET endpoint /wallet: ${address}`, req.query);
+        console.log(`GET /wallet/${address}`);
+
         const wallet = await findAssociatedWallet(address!.toString());
         if (wallet) {
-            console.log("wallet found", wallet.id);
-            res.json({ "walletId": wallet.id });
+            console.log("associated wallet found:", wallet.id);
+            res.json({ walletId: wallet.id });
+            return;
         }
-        console.log("wallet not found");
+        console.log(`associated wallet not found for ${address}`);
         res.json({});
-
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({
             error: 'Failed to lookup wallet',
-            // details: error.message 
         });
     }
 });
 
 // Search for a wallet associated with the address.
-// If not found, associate the address with a new wallet, and return the wallet ID in either case.
-app.post('/wallet', async (req: Request, res: Response) => {
+// If not found:
+// - find an unassociated wallet, or
+// - create a new wallet.
+// In either case, return the associated wallet ID.
+app.put('/wallet/:address', async (req: Request, res: Response) => {
     try {
-        const { address } = req.body;
+        const address = req.params.address;
 
-        console.log(`POST endpoint /wallet: ${address}`);
+        console.log(`PUT /wallet/${address}`);
+
         let wallet = await findAssociatedWallet(address.toString());
         if (wallet) {
-            console.log("wallet found", wallet.id);
-            res.json({ "walletId": wallet.id });
+            console.log("associated wallet found:", wallet.id);
+            res.json({ walletId: wallet.id });
+            return;
         } else {
-            console.log("wallet not found");
+            console.log(`associated wallet not found for ${address}`);
             wallet = await findUnassociatedWallet();
             if (wallet) {
-                console.log("gonna associate to wallet", wallet.id);
-                await circleClient.updateWallet({ id: wallet.id, name: `SOL wallet for ${address}`, refId: address });
+                console.log("associating with unassociated wallet:", wallet.id);
+                await circleClient.updateWallet({ id: wallet.id, name: trimName(`SOL wallet for ${address}`), refId: address });
             } else {
-                console.log("gonna create a wallet");
+                console.log(`creating a new wallet for $${address}`);
                 const newWallets = await circleClient.createWallets({
-                    idempotencyKey: "",
+                    idempotencyKey: crypto.randomUUID(),
                     count: 1,
                     accountType: "EOA",
                     blockchains: [BLOCKCHAIN as Blockchain],
-                    metadata: [{ "name": `SOL wallet for ${address}`, "refId": address }],
+                    metadata: [{ name: trimName(`SOL wallet for ${address}`), refId: address }],
                     walletSetId: CIRCLE_WALLET_SET_ID,
                 });
                 wallet = newWallets.data?.wallets[0];
             }
         }
 
-        console.log("associated wallet is now", wallet!.id);
-        res.json({ "walletId": wallet!.id });
+        console.log("associated wallet is now:", wallet!.id);
+        res.json({ walletId: wallet!.id });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({
             error: 'Failed to associate to wallet',
-            // details: error.message 
         });
     }
 });
