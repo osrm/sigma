@@ -126,6 +126,7 @@ const Home: NextPage = () => {
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const [depositAmount, setDepositAmount] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
+  const [depositBalance, setDepositBalance] = useState<string>('0.00');
 
   useEffect(() => {
     const timestamp = new Date().toLocaleTimeString();
@@ -138,10 +139,36 @@ const Home: NextPage = () => {
 
   const signer = useEthersSigner({ chainId: sepolia.id }); // 11155111
 
+  // Add function to fetch balance
+  const fetchBalance = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/balance/${signer?.address}`);
+      const data = await response.json();
+      setDepositBalance(data.balance || '0.00');
+      addLine(`Balance updated: ${data.balance} USDC`);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      addLine('Failed to fetch balance');
+    }
+  };
+
+  // Add useEffect to fetch balance when signer changes
+  useEffect(() => {
+    if (signer?.address) {
+      fetchBalance();
+    } else {
+      setDepositBalance('0');
+    }
+  }, [signer?.address]);
+
+  const handleMaxClick = () => {
+    setWithdrawAmount(depositBalance);
+  };
+
   const handleDeposit = async () => {
     const input = document.getElementById('depositAmount') as HTMLInputElement;
     const tokenAmount = input?.value || '0';
-    addLine(`Deposit amount: ${tokenAmount} USDC`);
+    addLine(`Depositing ${tokenAmount} USDC...`);
 
     // init Wormhole object, passing config for which network
     // to use (e.g. Mainnet/Testnet) and what Platforms to support
@@ -170,20 +197,21 @@ const Home: NextPage = () => {
     // The amount specified here is denominated in the token being transferred (USDC here)
     const nativeGas = automatic ? amount.units(amount.parse("0.0", 6)) : 0n;
 
+    addLine(`Initiated transfer to Solana`);
     await cctpTransfer(wh, source, destination, {
       amount: amt,
       automatic,
       nativeGas,
     });
+    addLine(`Completed transfer to Solana`);
+
+    addLine(`Completed deposit to Windfall`);
   };
 
   const handleWithdraw = async () => {
     const input = document.getElementById('withdrawAmount') as HTMLInputElement;
     const tokenAmount = input?.value || '0';
-    addLine(`Withdraw amount: ${tokenAmount} USDC`);
-
-    const val = process.env.NEXT_PUBLIC_API_ENDPOINT;
-    console.log(`API endpoint: ${val}`);
+    addLine(`Withdrawing ${tokenAmount} USDC...`);
   };
 
   return (
@@ -225,6 +253,7 @@ const Home: NextPage = () => {
         <div className={styles.bridgeCard}>
           <h2>Withdraw (Solana→Ethereum)</h2>
           <p>Withdraw your USDC from Windfall</p>
+
           <div className={styles.inputContainer}>
             <input
               type="number"
@@ -235,7 +264,16 @@ const Home: NextPage = () => {
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />
-            <span>USDC</span>
+          <div className={styles.balanceInfo}>
+            <button 
+              className={styles.maxButton} 
+              onClick={handleMaxClick}
+              disabled={!depositBalance || parseFloat(depositBalance) <= 0}
+            >
+              Max
+            </button>
+            <span>Balance: {depositBalance} USDC</span>
+          </div>
           </div>
           <button className={styles.bridgeButton}
             onClick={handleWithdraw}

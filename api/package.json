@@ -13,6 +13,8 @@
   "description": "",
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^5.0.0",
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

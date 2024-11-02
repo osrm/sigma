@@ -1,10 +1,15 @@
 import express, { Request, Response } from 'express';
-import {
-    initiateDeveloperControlledWalletsClient,
-    Blockchain
-} from '@circle-fin/developer-controlled-wallets'
+import { initiateDeveloperControlledWalletsClient, Blockchain } from '@circle-fin/developer-controlled-wallets'
+import { Commitment, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
+import { getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
+import { AnchorProvider, Program, Wallet } from '@coral-xyz/anchor';
+import * as anchor from '@coral-xyz/anchor';
+import idl from "./vault.json";
+import { Vault } from "./vault";
+const idl_string = JSON.stringify(idl);
+const idl_object = JSON.parse(idl_string);
+
 import dotenv from 'dotenv';
-import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 
 dotenv.config({ path: ['.env.development.local', '.env'] });
 
@@ -33,12 +38,12 @@ if (!SOL_PAYER) {
     throw new Error('SOL_PAYER is not defined in environment variables');
 }
 
+const payerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SOL_PAYER)));
+
 const circleClient = initiateDeveloperControlledWalletsClient({
     apiKey: CIRCLE_API_KEY,
     entitySecret: CIRCLE_ENTITY_SECRET,
 });
-
-const payerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SOL_PAYER)));
 
 const cors = require('cors');
 
@@ -70,6 +75,26 @@ function trimName(name: string) {
     return name.substring(0, 32) + "...";
 }
 
+function getConnection() {
+    return new Connection(process.env.RPC_ENDPOINT || 'http://localhost:8899')
+}
+
+function getVaultType() {
+    return new PublicKey(process.env.VAULT_TYPE!);
+}
+
+function getMint() {
+    return new PublicKey(process.env.TOKEN_MINT!);
+}
+
+async function latestBlock(
+    rpc: Connection,
+    commitment?: Commitment,
+): Promise<{ blockhash: string; lastValidBlockHeight: number }> {
+    return rpc.getLatestBlockhash(commitment ?? rpc.commitment);
+}
+
+
 const app = express();
 app.use(express.json());
 app.use(cors({
@@ -98,6 +123,41 @@ app.get('/wallet/:address', async (req: Request, res: Response) => {
         console.error('Error:', error);
         res.status(500).json({
             error: 'Failed to lookup wallet',
+        });
+    }
+});
+
+// Get user's deposit amount
+app.get('/balance/:address', async (req: Request, res: Response) => {
+    try {
+        const address = req.params.address;
+
+        console.log(`GET /balance/${address}`);
+        const wallet = await findAssociatedWallet(address!.toString());
+        if (wallet) {
+            const connection = getConnection();
+            const mint = getMint();
+            const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+                new PublicKey(wallet.address),
+                { mint }
+            );
+
+            let balance = '0';
+            if (tokenAccounts.value.length > 0) {
+                // Get balance from first token account that matches the mint
+                const tokenBalance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
+                balance = (tokenBalance.uiAmount || 0).toString();
+            }
+
+            console.log(`associated wallet found: token balance=${balance}`);
+            res.json({ balance });
+            return;
+        }
+        res.json({ balance: "0" });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({
+            error: 'Failed to get deposit balance',
         });
     }
 });
@@ -155,17 +215,16 @@ app.post('/fund', async (req: Request, res: Response) => {
 
         console.log(`POST /fund/${walletId}`);
 
-        const walletResponse = await circleClient.getWallet({id: walletId});
+        const walletResponse = await circleClient.getWallet({ id: walletId });
 
         const address = walletResponse.data?.wallet.address!;
 
         // had trouble with feePayer upon executing a tx with PW
         // workaround: xfer 0.1 SOL to fund this PW if it is unfunded
-        const connection = new Connection(process.env.RPC_ENDPOINT || 'http://localhost:8899');
+        const connection = getConnection();
         const balance = await connection.getBalance(new PublicKey(address));
         if (balance === 0) {
             console.log(`Funding ${address} with 0.1 SOL`);
-            const payerKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(process.env.SOL_PAYER!)));
             const transaction = new Transaction().add(
                 SystemProgram.transfer({
                     fromPubkey: payerKeypair.publicKey,
@@ -204,32 +263,11 @@ app.post('/sign', async (req: Request, res: Response) => {
             return;
         }
 
-        // const rawTransactionBuf = Buffer.from(
-        //     transactionBase64,
-        //     "base64"
-        // );
-        // const restoredTransaction = Transaction.from(rawTransactionBuf);
-        // restoredTransaction.feePayer = payerKeypair.publicKey;
-        // // // Add feePayer to the account keys if not already included
-        // // if (!restoredTransaction.signatures.some(sig => sig.publicKey.equals(payerKeypair.publicKey))) {
-        // //     restoredTransaction.signatures.unshift({
-        // //         publicKey: payerKeypair.publicKey,
-        // //         signature: null
-        // //     });
-        // // }        
-        // restoredTransaction.partialSign(payerKeypair);
-
-        // const rawTransaction = restoredTransaction.serialize({
-        //     requireAllSignatures: false,
-        //     verifySignatures: false,
-        // }).toString('base64');
-
         const wallet = await circleClient.getWallet({ id: walletId });
 
         const result = await circleClient.signTransaction({
             walletId,
             rawTransaction: transactionBase64,
-            // rawTransaction,
             memo: description,
         });
 
@@ -237,6 +275,121 @@ app.post('/sign', async (req: Request, res: Response) => {
             pubkey: wallet.data?.wallet.address,
             signature: result.data?.signature,
             transaction: result.data?.signedTransaction,
+        });
+    } catch (error) {
+        console.error('Error signing transaction:', error);
+        res.status(500).json({
+            error: 'Failed to sign transaction',
+        });
+    }
+});
+
+app.post('/deposit', async (req: Request, res: Response) => {
+    try {
+        const { walletId, amount } = req.body;
+
+        console.log(`POST /deposit`);
+
+        if (!walletId || !amount) {
+            res.status(400).json({
+                error: 'Missing required parameters: amount and walletId are required'
+            });
+            return;
+        }
+
+        const wallet = (await circleClient.getWallet({ id: walletId })).data?.wallet!
+        const walletPubkey = new PublicKey(wallet.address);
+        const vaultType = getVaultType();
+
+        const connection = getConnection();
+        const anchorWallet = new Wallet(payerKeypair);
+        const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
+        anchor.setProvider(provider);
+
+        const program = new Program<Vault>(idl_object, provider)
+
+        const [vault, _] = PublicKey.findProgramAddressSync(
+            [
+                anchor.utils.bytes.utf8.encode('vault'),
+                vaultType.toBuffer(),
+                walletPubkey.toBuffer(),
+            ],
+            program.programId
+        );
+        
+        const vaultTypeAccount = await program.account.vaultType.fetch(vaultType);
+
+        const transaction = new Transaction();
+        try {
+            await program.account.vault.fetch(vault);
+        } catch (error) {
+            // create vault if necessary
+            const newVaultIx = await program.methods.newVault(
+            )
+                .accounts({
+                    // @ts-ignore
+                    vault,
+                    vaultType,
+                    owner: walletPubkey,
+                    payer: payerKeypair.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .instruction();
+
+            transaction.add(newVaultIx);
+        }
+
+        const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            payerKeypair,
+            getMint(),
+            walletPubkey,
+        );
+
+        // deposit to vault
+        const depositIx = await program.methods.deposit(
+            new anchor.BN(amount * 1_000_000),
+        )
+            .accounts({
+                vault,
+                // @ts-ignore
+                vaultType,
+                owner: walletPubkey,
+                payer: payerKeypair.publicKey,
+                pool: vaultTypeAccount.pool,
+                from: userTokenAccount.address,
+                systemProgram: anchor.web3.SystemProgram.programId,
+                tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+
+        transaction.add(depositIx);
+
+        let { blockhash, lastValidBlockHeight } = await latestBlock(connection);
+        transaction.recentBlockhash = blockhash;
+        transaction.lastValidBlockHeight = lastValidBlockHeight;
+        transaction.feePayer = payerKeypair.publicKey;
+
+        transaction.partialSign(payerKeypair);
+
+        const rawTransaction = transaction.serialize({
+            requireAllSignatures: false,
+            verifySignatures: false,
+        });
+
+        const signResponse = await circleClient.signTransaction({
+            walletId,
+            rawTransaction: rawTransaction.toString('base64'),
+            memo: `Deposit from ${wallet.refId?.substring(0, 10)}`,
+        });
+        const rawTransactionBuf = Buffer.from(
+            signResponse.data?.signedTransaction!,
+            "base64"
+        );
+        const depositTxSig = await connection.sendRawTransaction(rawTransactionBuf);
+
+        res.json({
+            signature: depositTxSig,
         });
     } catch (error) {
         console.error('Error signing transaction:', error);
