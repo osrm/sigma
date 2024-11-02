@@ -127,7 +127,7 @@ app.get('/wallet/:address', async (req: Request, res: Response) => {
     }
 });
 
-// Get user's deposit amount
+// Get user's deposit amount with Windfall by looking up source address
 app.get('/balance/:address', async (req: Request, res: Response) => {
     try {
         const address = req.params.address;
@@ -156,13 +156,11 @@ app.get('/balance/:address', async (req: Request, res: Response) => {
             try {
                 const vaultAccount = await program.account.vault.fetch(vault);
                 res.json({ balance: vaultAccount.amount.toNumber() / 1_000_000.0 });
+                return;
             } catch (error) {
             }
-
-            res.json({ balance: 0 });
-            return;
         }
-        res.json({ balance: "0" });
+        res.json({ balance: 0 });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({
