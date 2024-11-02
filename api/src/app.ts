@@ -135,22 +135,31 @@ app.get('/balance/:address', async (req: Request, res: Response) => {
         console.log(`GET /balance/${address}`);
         const wallet = await findAssociatedWallet(address!.toString());
         if (wallet) {
+            const walletPubkey = new PublicKey(wallet.address);
+            const vaultType = getVaultType();
+    
             const connection = getConnection();
-            const mint = getMint();
-            const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-                new PublicKey(wallet.address),
-                { mint }
+            const anchorWallet = new Wallet(payerKeypair);
+            const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
+            anchor.setProvider(provider);
+    
+            const program = new Program<Vault>(idl_object, provider)
+    
+            const [vault, _] = PublicKey.findProgramAddressSync(
+                [
+                    anchor.utils.bytes.utf8.encode('vault'),
+                    vaultType.toBuffer(),
+                    walletPubkey.toBuffer(),
+                ],
+                program.programId
             );
-
-            let balance = '0';
-            if (tokenAccounts.value.length > 0) {
-                // Get balance from first token account that matches the mint
-                const tokenBalance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
-                balance = (tokenBalance.uiAmount || 0).toString();
+            try {
+                const vaultAccount = await program.account.vault.fetch(vault);
+                res.json({ balance: vaultAccount.amount.toNumber() / 1_000_000.0 });
+            } catch (error) {
             }
 
-            console.log(`associated wallet found: token balance=${balance}`);
-            res.json({ balance });
+            res.json({ balance: 0 });
             return;
         }
         res.json({ balance: "0" });
