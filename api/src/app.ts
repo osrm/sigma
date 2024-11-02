@@ -382,7 +382,7 @@ app.post('/deposit', async (req: Request, res: Response) => {
 
         // deposit to vault
         const depositIx = await program.methods.deposit(
-            new anchor.BN(amount * 1_000_000),
+            new anchor.BN(amount),
         )
             .accounts({
                 vault,
@@ -476,7 +476,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
 
         // withdraw from vault
         const withdrawIx = await program.methods.withdraw(
-            new anchor.BN(amount * 1_000_000),
+            new anchor.BN(amount),
         )
             .accounts({
                 vault,

@@ -14,6 +14,7 @@ import { BrowserProvider, JsonRpcSigner, Provider } from 'ethers'
 import type { Account, Chain, Client, Transport } from 'viem'
 import { type Config, useConnectorClient } from 'wagmi'
 import { sepolia } from 'wagmi/chains';
+import { getApiUrl } from '../helpers/utils';
 import styles from '../styles/Home.module.css';
 
 function clientToSigner(client: Client<Transport, Chain, Account>) {
@@ -122,6 +123,26 @@ async function completeTransfer(
   // EXAMPLE_RECOVER_TRANSFER
 }
 
+async function getProgrammableWalletInfo(sourceAddress: string) {
+  // get the associated Programmable Wallet on Solana (create one if needed)
+  const getWalletUrl = `${getApiUrl()}/wallet/${sourceAddress}`;
+  const response = await fetch(getWalletUrl, {
+    method: 'PUT',
+    headers: {
+      'Accept': 'application/json'
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get associated wallet: ${response.statusText}`);
+  }
+  const walletData = await response.json();
+  const { walletId, address } = walletData;
+  if (!walletId || !address) {
+    throw new Error('No associated wallet found');
+  }
+  return { walletId, address };
+}
+
 const Home: NextPage = () => {
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const [depositAmount, setDepositAmount] = useState<string>('');
@@ -182,8 +203,10 @@ const Home: NextPage = () => {
     const sourceSigner = await getEtherSigner(await sendChain.getRpc(), signer!);
     const source = { chain: sendChain, signer: sourceSigner, address: Wormhole.chainAddress(sendChain.chain, sourceSigner.address()) }
 
+    const {walletId, address} = await getProgrammableWalletInfo(signer!.address);
+
     // get Solana signer (using Circle Programmable Wallet internally)
-    const destination = await getSolanaSigner(rcvChain, signer!.address);
+    const destination = await getSolanaSigner(rcvChain, signer!.address, walletId, address);
 
     // 6 decimals for USDC (except for bsc, so check decimals before using this)
     const amt = amount.units(amount.parse(tokenAmount, 6));
@@ -205,6 +228,21 @@ const Home: NextPage = () => {
     });
     addLine(`Completed transfer to Solana`);
 
+    const depositUrl = `${getApiUrl()}/deposit`;
+    const depositResponse = await fetch(depositUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        walletId,
+        amount: amt.toString(),
+      })
+    });
+    if (!depositResponse.ok) {
+      throw new Error(`Failed to execute deposit transaction: ${depositResponse.statusText}`);
+    }
     addLine(`Completed deposit to Windfall`);
   };
 
@@ -264,16 +302,16 @@ const Home: NextPage = () => {
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
             />
-          <div className={styles.balanceInfo}>
-            <button 
-              className={styles.maxButton} 
-              onClick={handleMaxClick}
-              disabled={!depositBalance || parseFloat(depositBalance) <= 0}
-            >
-              Max
-            </button>
-            <span>Balance: {depositBalance} USDC</span>
-          </div>
+            <div className={styles.balanceInfo}>
+              <button
+                className={styles.maxButton}
+                onClick={handleMaxClick}
+                disabled={!depositBalance || parseFloat(depositBalance) <= 0}
+              >
+                Max
+              </button>
+              <span>Balance: {depositBalance} USDC</span>
+            </div>
           </div>
           <button className={styles.bridgeButton}
             onClick={handleWithdraw}

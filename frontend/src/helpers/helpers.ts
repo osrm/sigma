@@ -23,8 +23,10 @@ export interface SignerStuff<N extends Network, C extends Chain = Chain> {
 export async function getSolanaSigner<N extends Network, C extends Chain>(
     chain: ChainContext<N, C>,
     sourceAddress: string,
+    walletId: string,
+    address: string,
 ): Promise<SignerStuff<N, C>> {
-    const signer = await getSolanaSignAndSendSigner(await chain.getRpc(), sourceAddress, {
+    const signer = await getSolanaSignAndSendSigner(await chain.getRpc(), sourceAddress, walletId, address, {
         debug: true,
         priorityFee: {
             // take the middle priority fee

@@ -25,6 +25,7 @@ import type {
     UnsignedTransaction,
 } from '@wormhole-foundation/sdk-connect';
 import { encoding, nativeChainIds, PlatformToChains } from '@wormhole-foundation/sdk-connect';
+import { getApiUrl } from './utils';
 
 const DEFAULT_PRIORITY_FEE_PERCENTILE = 0.5;
 const DEFAULT_PERCENTILE_MULTIPLE = 1;
@@ -199,15 +200,13 @@ export async function getSolanaSigner(
     );
 }
 
-function getApiUrl() {
-    return process.env.NEXT_PUBLIC_API_ENDPOINT!;
-}
-
 // returns a SignAndSendSigner for the Solana platform
 export async function getSolanaSignAndSendSigner(
     rpc: Connection,
     //privateKey: string | Keypair,
     sourceAddress: string,
+    walletId: string,
+    address: string,
     opts?: SolanaSendSignerOptions,
 ): Promise<Signer> {
     const [_, chain] = await chainFromRpc(rpc);
@@ -216,24 +215,7 @@ export async function getSolanaSignAndSendSigner(
         if (opts.priorityFee.percentile && opts.priorityFee.percentile > 1.0)
             throw new Error('priorityFeePercentile must be a number between 0 and 1');
         // TODO: other validation
-    }
-
-    // get the associated Programmable Wallet on Solana (create one if needed)
-    const getWalletUrl = `${getApiUrl()}/wallet/${sourceAddress}`;
-    const response = await fetch(getWalletUrl, {
-        method: 'PUT',
-        headers: {
-            'Accept': 'application/json'
-        }
-    });
-    if (!response.ok) {
-        throw new Error(`Failed to get associated wallet: ${response.statusText}`);
-    }
-    const walletData = await response.json();
-    const { walletId, address } = walletData;
-    if (!walletId || !address) {
-        throw new Error('No associated wallet found');
-    }
+    }   
 
     return new SolanaSendSigner(
         rpc,
