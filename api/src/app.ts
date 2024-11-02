@@ -137,14 +137,14 @@ app.get('/balance/:address', async (req: Request, res: Response) => {
         if (wallet) {
             const walletPubkey = new PublicKey(wallet.address);
             const vaultType = getVaultType();
-    
+
             const connection = getConnection();
             const anchorWallet = new Wallet(payerKeypair);
             const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
             anchor.setProvider(provider);
-    
+
             const program = new Program<Vault>(idl_object, provider)
-    
+
             const [vault, _] = PublicKey.findProgramAddressSync(
                 [
                     anchor.utils.bytes.utf8.encode('vault'),
@@ -291,6 +291,33 @@ app.post('/sign', async (req: Request, res: Response) => {
     }
 });
 
+async function executeTransaction(transaction: Transaction, walletId: string, description: string) {
+    const connection = getConnection();
+    
+    let { blockhash, lastValidBlockHeight } = await latestBlock(connection);
+    transaction.recentBlockhash = blockhash;
+    transaction.lastValidBlockHeight = lastValidBlockHeight;
+    transaction.feePayer = payerKeypair.publicKey;
+
+    transaction.partialSign(payerKeypair);
+
+    const rawTransaction = transaction.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+    });
+
+    const signResponse = await circleClient.signTransaction({
+        walletId,
+        rawTransaction: rawTransaction.toString('base64'),
+        memo: description,
+    });
+    const rawTransactionBuf = Buffer.from(
+        signResponse.data?.signedTransaction!,
+        "base64"
+    );
+    return await connection.sendRawTransaction(rawTransactionBuf);
+}
+
 app.post('/deposit', async (req: Request, res: Response) => {
     try {
         const { walletId, amount } = req.body;
@@ -323,7 +350,7 @@ app.post('/deposit', async (req: Request, res: Response) => {
             ],
             program.programId
         );
-        
+
         const vaultTypeAccount = await program.account.vaultType.fetch(vaultType);
 
         const transaction = new Transaction();
@@ -372,31 +399,104 @@ app.post('/deposit', async (req: Request, res: Response) => {
 
         transaction.add(depositIx);
 
-        let { blockhash, lastValidBlockHeight } = await latestBlock(connection);
-        transaction.recentBlockhash = blockhash;
-        transaction.lastValidBlockHeight = lastValidBlockHeight;
-        transaction.feePayer = payerKeypair.publicKey;
-
-        transaction.partialSign(payerKeypair);
-
-        const rawTransaction = transaction.serialize({
-            requireAllSignatures: false,
-            verifySignatures: false,
-        });
-
-        const signResponse = await circleClient.signTransaction({
-            walletId,
-            rawTransaction: rawTransaction.toString('base64'),
-            memo: `Deposit from ${wallet.refId?.substring(0, 10)}`,
-        });
-        const rawTransactionBuf = Buffer.from(
-            signResponse.data?.signedTransaction!,
-            "base64"
-        );
-        const depositTxSig = await connection.sendRawTransaction(rawTransactionBuf);
+        const depositTxSig = await executeTransaction(transaction, walletId, `Deposit by ${wallet.refId?.substring(0, 10)}`);
 
         res.json({
             signature: depositTxSig,
+        });
+    } catch (error) {
+        console.error('Error signing transaction:', error);
+        res.status(500).json({
+            error: 'Failed to sign transaction',
+        });
+    }
+});
+
+app.post('/withdraw', async (req: Request, res: Response) => {
+    try {
+        const { walletId, amount } = req.body;
+
+        console.log(`POST /withdraw`);
+
+        if (!walletId || !amount) {
+            res.status(400).json({
+                error: 'Missing required parameters: amount and walletId are required'
+            });
+            return;
+        }
+
+        const wallet = (await circleClient.getWallet({ id: walletId })).data?.wallet!
+        const walletPubkey = new PublicKey(wallet.address);
+        const vaultType = getVaultType();
+
+        const connection = getConnection();
+        const anchorWallet = new Wallet(payerKeypair);
+        const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
+        anchor.setProvider(provider);
+
+        const program = new Program<Vault>(idl_object, provider)
+
+        const [vault, _] = PublicKey.findProgramAddressSync(
+            [
+                anchor.utils.bytes.utf8.encode('vault'),
+                vaultType.toBuffer(),
+                walletPubkey.toBuffer(),
+            ],
+            program.programId
+        );
+
+        const vaultTypeAccount = await program.account.vaultType.fetch(vaultType);
+
+        const transaction = new Transaction();
+        try {
+            await program.account.vault.fetch(vault);
+        } catch (error) {
+            // create vault if necessary
+            const newVaultIx = await program.methods.newVault(
+            )
+                .accounts({
+                    // @ts-ignore
+                    vault,
+                    vaultType,
+                    owner: walletPubkey,
+                    payer: payerKeypair.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .instruction();
+
+            transaction.add(newVaultIx);
+        }
+
+        const userTokenAccount = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            payerKeypair,
+            getMint(),
+            walletPubkey,
+        );
+
+        // withdraw from vault
+        const withdrawIx = await program.methods.withdraw(
+            new anchor.BN(amount * 1_000_000),
+        )
+            .accounts({
+                vault,
+                // @ts-ignore
+                vaultType,
+                owner: walletPubkey,
+                payer: payerKeypair.publicKey,
+                pool: vaultTypeAccount.pool,
+                to: userTokenAccount.address,
+                systemProgram: anchor.web3.SystemProgram.programId,
+                tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+
+        transaction.add(withdrawIx);
+
+        const withdrawTxSig = await executeTransaction(transaction, walletId, `Withdraw by ${wallet.refId?.substring(0, 10)}`);      
+
+        res.json({
+            signature: withdrawTxSig,
         });
     } catch (error) {
         console.error('Error signing transaction:', error);
