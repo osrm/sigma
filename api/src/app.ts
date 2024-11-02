@@ -4,6 +4,7 @@ import {
     Blockchain
 } from '@circle-fin/developer-controlled-wallets'
 import dotenv from 'dotenv';
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 
 dotenv.config({ path: ['.env.development.local', '.env'] });
 
@@ -27,10 +28,22 @@ if (!BLOCKCHAIN) {
     throw new Error('BLOCKCHAIN is not defined in environment variables');
 }
 
+const SOL_PAYER = process.env.SOL_PAYER;
+if (!SOL_PAYER) {
+    throw new Error('SOL_PAYER is not defined in environment variables');
+}
+
 const circleClient = initiateDeveloperControlledWalletsClient({
     apiKey: CIRCLE_API_KEY,
     entitySecret: CIRCLE_ENTITY_SECRET,
 });
+
+const payerKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SOL_PAYER)));
+
+const cors = require('cors');
+
+// TODO
+// - Manage EVM->Solana wallet associations in local/backend KV store
 
 async function findAssociatedWallet(address: string) {
     const wallets = await circleClient.listWallets({ blockchain: BLOCKCHAIN as Blockchain });
@@ -59,10 +72,11 @@ function trimName(name: string) {
 
 const app = express();
 app.use(express.json());
-
-app.get('/', (req, res) => {
-    res.send('Hello World');
-});
+app.use(cors({
+    origin: '*', // または '*' for development
+    methods: ['GET', 'PUT', 'POST'],
+    allowedHeaders: ['Content-Type', 'Accept']
+}));
 
 // Search for a wallet associated with the address.
 // If not found, associate the address with a new wallet, and return the wallet ID in either case.
@@ -75,7 +89,7 @@ app.get('/wallet/:address', async (req: Request, res: Response) => {
         const wallet = await findAssociatedWallet(address!.toString());
         if (wallet) {
             console.log("associated wallet found:", wallet.id);
-            res.json({ walletId: wallet.id });
+            res.json({ walletId: wallet.id, address: wallet.address });
             return;
         }
         console.log(`associated wallet not found for ${address}`);
@@ -102,7 +116,7 @@ app.put('/wallet/:address', async (req: Request, res: Response) => {
         let wallet = await findAssociatedWallet(address.toString());
         if (wallet) {
             console.log("associated wallet found:", wallet.id);
-            res.json({ walletId: wallet.id });
+            res.json({ walletId: wallet.id, address: wallet.address });
             return;
         } else {
             console.log(`associated wallet not found for ${address}`);
@@ -125,7 +139,50 @@ app.put('/wallet/:address', async (req: Request, res: Response) => {
         }
 
         console.log("associated wallet is now:", wallet!.id);
-        res.json({ walletId: wallet!.id });
+        res.json({ walletId: wallet!.id, address: wallet!.address });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({
+            error: 'Failed to associate to wallet',
+        });
+    }
+});
+
+// Fund a Programmable Wallet
+app.post('/fund', async (req: Request, res: Response) => {
+    try {
+        const { walletId } = req.body;
+
+        console.log(`POST /fund/${walletId}`);
+
+        const walletResponse = await circleClient.getWallet({id: walletId});
+
+        const address = walletResponse.data?.wallet.address!;
+
+        // had trouble with feePayer upon executing a tx with PW
+        // workaround: xfer 0.1 SOL to fund this PW if it is unfunded
+        const connection = new Connection(process.env.RPC_ENDPOINT || 'http://localhost:8899');
+        const balance = await connection.getBalance(new PublicKey(address));
+        if (balance === 0) {
+            console.log(`Funding ${address} with 0.1 SOL`);
+            const payerKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(process.env.SOL_PAYER!)));
+            const transaction = new Transaction().add(
+                SystemProgram.transfer({
+                    fromPubkey: payerKeypair.publicKey,
+                    toPubkey: new PublicKey(address),
+                    lamports: LAMPORTS_PER_SOL / 10, // 0.1 SOL
+                })
+            );
+            const signature = await sendAndConfirmTransaction(
+                connection,
+                transaction,
+                [payerKeypair]
+            );
+            console.log(`Funded PW with tx: ${signature}`);
+        }
+        console.log(`Funding done`);
+
+        res.status(200).json({});
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({
@@ -147,11 +204,32 @@ app.post('/sign', async (req: Request, res: Response) => {
             return;
         }
 
-        const wallet = await circleClient.getWallet({id: walletId});
+        // const rawTransactionBuf = Buffer.from(
+        //     transactionBase64,
+        //     "base64"
+        // );
+        // const restoredTransaction = Transaction.from(rawTransactionBuf);
+        // restoredTransaction.feePayer = payerKeypair.publicKey;
+        // // // Add feePayer to the account keys if not already included
+        // // if (!restoredTransaction.signatures.some(sig => sig.publicKey.equals(payerKeypair.publicKey))) {
+        // //     restoredTransaction.signatures.unshift({
+        // //         publicKey: payerKeypair.publicKey,
+        // //         signature: null
+        // //     });
+        // // }        
+        // restoredTransaction.partialSign(payerKeypair);
+
+        // const rawTransaction = restoredTransaction.serialize({
+        //     requireAllSignatures: false,
+        //     verifySignatures: false,
+        // }).toString('base64');
+
+        const wallet = await circleClient.getWallet({ id: walletId });
 
         const result = await circleClient.signTransaction({
             walletId,
             rawTransaction: transactionBase64,
+            // rawTransaction,
             memo: description,
         });
 
