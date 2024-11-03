@@ -246,8 +246,6 @@ app.post('/fund', async (req: Request, res: Response) => {
             );
             console.log(`Funded PW with tx: ${signature}`);
         }
-        console.log(`Funding done`);
-
         res.status(200).json({});
     } catch (error) {
         console.error('Error:', error);
@@ -261,7 +259,7 @@ app.post('/sign', async (req: Request, res: Response) => {
     try {
         const { transactionBase64, walletId, description } = req.body;
 
-        console.log(`POST /sign`);
+        console.log(`POST /sign - walletId ${walletId}, tx ${transactionBase64.substring(0, 20)}...`);
 
         if (!transactionBase64 || !walletId) {
             res.status(400).json({
@@ -405,7 +403,7 @@ app.post('/deposit', async (req: Request, res: Response) => {
             signature: depositTxSig,
         });
     } catch (error) {
-        console.error('Error signing transaction:', error);
+        console.error('Error deposit transaction:', error);
         res.status(500).json({
             error: 'Failed to sign transaction',
         });
@@ -416,7 +414,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
     try {
         const { walletId, amount } = req.body;
 
-        console.log(`POST /withdraw`);
+        console.log(`POST /withdraw - walletId ${walletId}, amount ${amount}`);
 
         if (!walletId || !amount) {
             res.status(400).json({
@@ -494,12 +492,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
 
         transaction.add(withdrawIx);
 
-        console.log(`amount type: ${typeof amount}, instanceof BN: ${amount instanceof anchor.BN}`);
-        console.log(`amount ${amountBn.toNumber()} vs ${vaultAccount.amount.toNumber()}`)
-        console.log(`amountBn.eq(vaultAccount.amount) ${amountBn.eq(vaultAccount.amount)}`)
-
         if (amountBn.eq(vaultAccount.amount)) {
-        //if (amount === vaultAccount.amount) {
             const closeVaultIx = await program.methods.closeVault(
             )
               .accounts({
@@ -521,7 +514,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
             signature: withdrawTxSig,
         });
     } catch (error) {
-        console.error('Error signing transaction:', error);
+        console.error('Error withdraw transaction:', error);
         res.status(500).json({
             error: 'Failed to sign transaction',
         });
