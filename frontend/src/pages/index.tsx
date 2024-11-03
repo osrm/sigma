@@ -84,8 +84,8 @@ async function cctpTransfer<N extends Network>(
   // Note: Depending on chain finality, this timeout may need to be increased.
   // See https://developers.circle.com/stablecoin/docs/cctp-technical-reference#mainnet for more
   console.log("Waiting for Attestation");
-  // const attestIds = await xfer.fetchAttestation(300_000);
-  const attestIds = await xfer.fetchAttestation(quote.eta ?? 1_000_000);
+  const attestIds = await xfer.fetchAttestation(300_000);
+  //const attestIds = await xfer.fetchAttestation(quote.eta ?? 1_000_000);
   console.log(`Got Attestation: `, attestIds);
 
   console.log("Completing Transfer");
@@ -250,6 +250,60 @@ const Home: NextPage = () => {
     const input = document.getElementById('withdrawAmount') as HTMLInputElement;
     const tokenAmount = input?.value || '0';
     addLine(`Withdrawing ${tokenAmount} USDC...`);
+
+    // 6 decimals for USDC (except for bsc, so check decimals before using this)
+    const amt = amount.units(amount.parse(tokenAmount, 6));
+
+    const {walletId, address} = await getProgrammableWalletInfo(signer!.address);
+
+    const withdrawUrl = `${getApiUrl()}/withdraw`;
+    const withdrawResponse = await fetch(withdrawUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        walletId,
+        amount: amt.toString(),
+      })
+    });
+    if (!withdrawResponse.ok) {
+      throw new Error(`Failed to execute withdraw transaction: ${withdrawResponse.statusText}`);
+    }
+    addLine(`Completed withdraw from Windfall`);
+
+    // init Wormhole object, passing config for which network
+    // to use (e.g. Mainnet/Testnet) and what Platforms to support
+    const wh = await wormhole("Testnet", [evm, solana]);
+
+    // Grab chain Contexts
+    const sendChain = wh.getChain("Solana");
+    const rcvChain = wh.getChain("Sepolia");
+
+    // get Solana signer (using Circle Programmable Wallet internally)
+    const source = await getSolanaSigner(sendChain, signer!.address, walletId, address);
+
+    // get Ethereum signer (for now, tested with Brave Wallet)
+    const destSigner = await getEtherSigner(await rcvChain.getRpc(), signer!);
+    const destination = { chain: rcvChain, signer: destSigner, address: Wormhole.chainAddress(rcvChain.chain, destSigner.address()) }
+
+    // Choose whether or not to have the attestation delivered for you
+    const automatic = false;
+
+    // If the transfer is requested to be automatic, you can also request that
+    // during redemption, the receiver gets some amount of native gas transferred to them
+    // so that they may pay for subsequent transactions
+    // The amount specified here is denominated in the token being transferred (USDC here)
+    const nativeGas = automatic ? amount.units(amount.parse("0.0", 6)) : 0n;
+
+    addLine(`Initiated transfer to Ethereum`);
+    await cctpTransfer(wh, source, destination, {
+      amount: amt,
+      automatic,
+      nativeGas,
+    });
+    addLine(`Completed transfer to Ethereum`);
   };
 
   return (

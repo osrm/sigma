@@ -293,7 +293,7 @@ app.post('/sign', async (req: Request, res: Response) => {
 
 async function executeTransaction(transaction: Transaction, walletId: string, description: string) {
     const connection = getConnection();
-    
+
     let { blockhash, lastValidBlockHeight } = await latestBlock(connection);
     transaction.recentBlockhash = blockhash;
     transaction.lastValidBlockHeight = lastValidBlockHeight;
@@ -448,24 +448,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
         const vaultTypeAccount = await program.account.vaultType.fetch(vaultType);
 
         const transaction = new Transaction();
-        try {
-            await program.account.vault.fetch(vault);
-        } catch (error) {
-            // create vault if necessary
-            const newVaultIx = await program.methods.newVault(
-            )
-                .accounts({
-                    // @ts-ignore
-                    vault,
-                    vaultType,
-                    owner: walletPubkey,
-                    payer: payerKeypair.publicKey,
-                    systemProgram: anchor.web3.SystemProgram.programId,
-                })
-                .instruction();
-
-            transaction.add(newVaultIx);
-        }
+        const vaultAccount = await program.account.vault.fetch(vault);
 
         const userTokenAccount = await getOrCreateAssociatedTokenAccount(
             provider.connection,
@@ -473,6 +456,22 @@ app.post('/withdraw', async (req: Request, res: Response) => {
             getMint(),
             walletPubkey,
         );
+
+        if (vaultAccount.status.active) {
+            // deactivate the vault
+            const deactivateIx = await program.methods.deactivate(
+            )
+                .accounts({
+                    vault,
+                    // @ts-ignore
+                    vaultType,
+                    owner: walletPubkey,
+                    payer: payerKeypair.publicKey,
+                })
+                .instruction();
+
+            transaction.add(deactivateIx);
+        }
 
         // withdraw from vault
         const withdrawIx = await program.methods.withdraw(
@@ -493,7 +492,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
 
         transaction.add(withdrawIx);
 
-        const withdrawTxSig = await executeTransaction(transaction, walletId, `Withdraw by ${wallet.refId?.substring(0, 10)}`);      
+        const withdrawTxSig = await executeTransaction(transaction, walletId, `Withdraw by ${wallet.refId?.substring(0, 10)}`);
 
         res.json({
             signature: withdrawTxSig,
