@@ -169,10 +169,9 @@ const Home: NextPage = () => {
       const prevBalance = depositBalance;
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/balance/${signer?.address}`);
       const data = await response.json();
-      const newBalance = data.balance || '0.00';
+      const newBalance = data.balance || '0';
       if (prevBalance !== newBalance) {
         setDepositBalance(newBalance);
-        addLine(`Balance updated: ${newBalance} USDC`);
       }
     } catch (error) {
       console.error('Error fetching balance:', error);
@@ -256,7 +255,7 @@ const Home: NextPage = () => {
     const depositAmount = BigInt(amt.toString());
     while (Date.now() - startTime < 15000) { // 15 seconds timeout
       await fetchBalance();
-      if (BigInt(depositBalance) >= depositAmount) {
+      if (Number(depositBalance) * 1_000_000 >= depositAmount) {
         break;
       }
       await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second interval
