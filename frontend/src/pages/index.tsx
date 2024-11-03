@@ -147,7 +147,7 @@ const Home: NextPage = () => {
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const [depositAmount, setDepositAmount] = useState<string>('');
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
-  const [depositBalance, setDepositBalance] = useState<string>('0.00');
+  const [depositBalance, setDepositBalance] = useState<string>('0');
 
   useEffect(() => {
     const timestamp = new Date().toLocaleTimeString();
@@ -209,7 +209,7 @@ const Home: NextPage = () => {
     const sourceSigner = await getEtherSigner(await sendChain.getRpc(), signer!);
     const source = { chain: sendChain, signer: sourceSigner, address: Wormhole.chainAddress(sendChain.chain, sourceSigner.address()) }
 
-    const {walletId, address} = await getProgrammableWalletInfo(signer!.address);
+    const { walletId, address } = await getProgrammableWalletInfo(signer!.address);
 
     // get Solana signer (using Circle Programmable Wallet internally)
     const destination = await getSolanaSigner(rcvChain, signer!.address, walletId, address);
@@ -234,22 +234,27 @@ const Home: NextPage = () => {
     });
     addLine(`Completed transfer to Solana`);
 
-    const depositUrl = `${getApiUrl()}/deposit`;
-    const depositResponse = await fetch(depositUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        walletId,
-        amount: amt.toString(),
-      })
-    });
-    if (!depositResponse.ok) {
-      throw new Error(`Failed to execute deposit transaction: ${depositResponse.statusText}`);
+    // retry loop of deposit　tx
+    const startTime0 = Date.now();
+    while (Date.now() - startTime0 < 15000) { // 15 seconds timeout
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second interval
+      const depositUrl = `${getApiUrl()}/deposit`;
+      const depositResponse = await fetch(depositUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          walletId,
+          amount: amt.toString(),
+        })
+      });
+      if (depositResponse.ok) {
+        addLine(`Completed deposit to Windfall`);
+        break;
+      }
     }
-    addLine(`Completed deposit to Windfall`);
 
     const startTime = Date.now();
     const depositAmount = BigInt(amt.toString());
@@ -270,7 +275,7 @@ const Home: NextPage = () => {
     // 6 decimals for USDC (except for bsc, so check decimals before using this)
     const amt = amount.units(amount.parse(tokenAmount, 6));
 
-    const {walletId, address} = await getProgrammableWalletInfo(signer!.address);
+    const { walletId, address } = await getProgrammableWalletInfo(signer!.address);
 
     const withdrawUrl = `${getApiUrl()}/withdraw`;
     const withdrawResponse = await fetch(withdrawUrl, {
@@ -342,7 +347,7 @@ const Home: NextPage = () => {
           <div className={styles.inputContainer}>
             <input
               type="number"
-              placeholder="0.00"
+              placeholder="0"
               min="0"
               step="0.01"
               id="depositAmount"
@@ -367,7 +372,7 @@ const Home: NextPage = () => {
           <div className={styles.inputContainer}>
             <input
               type="number"
-              placeholder="0.00"
+              placeholder="0"
               min="0"
               step="0.01"
               id="withdrawAmount"
