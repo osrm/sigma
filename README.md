@@ -2,23 +2,25 @@
 
 We are participating in [Wormhole SIGMA Sprint](https://sigma.wormhole.com/sprint) with this project.
 
-This project implements a mechanism to deposit USDC directly from chains like Ethereum to Windfall on Solana, using the Wormhole TS SDK and Circle CCTP USDC Transfer.
+This project implements a mechanism for depositing USDC directly from chains like Ethereum to Windfall on Solana, using the Wormhole TS SDK and Circle CCTP USDC Transfer.
 
-Please note that if bridging to Solana is available, tokens other than USDC can be supported, and thanks to Wormhole, a variety of source chains can also be supported for bridging, not limited to EVMs.
+End users can deposit USDC into the Windfall `vault` program deployed on Solana and access services provided by Windfall by simply signing Ethereum transactions.
 
-Here's how to use the frontend and understand the general flow of operations and inner workings:
+Note that if bridging to Solana is available, tokens other than USDC can be supported, and thanks to Wormhole, various source chains can be supported for bridging, not limited to EVMs.
+
+Here's how to use the frontend and understand the general flow of operations:
 
 - The end user connects to an EVM-compatible wallet *A* (we used Brave Wallet for testing)
 - The backend creates a Circle Programmable Wallet *X* on Solana that is linked to wallet *A*
-- When a user initiates a deposit operation:
-  - Wallet *A* signs an EVM-side USDC transfer transaction to initiate a transfer
+- When a user initiates a deposit:
+  - Wallet *A* signs an EVM-side USDC transfer transaction to initiate the transfer
   - The system waits for Circle Attestation
   - Programmable Wallet *X* signs a Solana-side token receive transaction
   - Programmable Wallet *X* signs a Solana-side Windfall deposit transaction
-- When a user initiates a withdrawal operation:
+- When a user initiates a withdrawal:
   - The end user connects their EVM-compatible wallet *A*
   - The backend looks up the Circle Programmable Wallet *X* on Solana that is linked to wallet *A*
-  - Programmable Wallet *X* signs a Solana-side Windfall withdraw transaction
+  - Programmable Wallet *X* signs a Solana-side Windfall withdrawal transaction
   - Programmable Wallet *X* signs a Solana-side USDC transfer transaction
   - The system waits for Circle Attestation
   - Wallet *A* signs an EVM-side USDC receive transaction
@@ -29,25 +31,25 @@ The demo frontend is deployed at a temporary domain [https://test.softgate.co.jp
 
 ![Demo Site](Frontend.png)
 
-You can use this demonstration site to evaluate the project and see how it works.
-Please refer to the demo video submitted for the hackathon for instructions on how to use this site.
+You can use this demonstration site to evaluate the project and observe how it works.
+For instructions on using this site, please refer to the demo video submitted for the hackathon.
 
 The backend API server is deployed at [https://api.softgate.co.jp/sigma](https://api.softgate.co.jp/sigma).
 The frontend mentioned above is configured to work with this backend API server.
 
-These operate on the Ethereum Sepolia testnet and Solana devnet.
-To perform actual bridge operations, you will need ETH and USDC on the Sepolia testnet.
+The system operates on the Ethereum Sepolia testnet and Solana devnet.
+To perform bridge operations, you will need ETH and USDC on the Sepolia testnet.
 
-To obtain testnet ETH and USDC, you can use the following faucet services (but not limited to them):
+You can obtain testnet ETH and USDC through the following faucet services (among others):
 
 - [Alchemy Faucet](https://www.alchemy.com/faucets/ethereum-sepolia) (ETH)
 - [Google Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) (ETH)
 - [Circle Faucet](https://faucet.circle.com/) (USDC)
 
-Additionally, a compatible wallet must be installed in your browser and be set to interact with Ethereum Sepolia testnet.
-Note that this application requires a wallet that can sign transactions without broadcasting them to the network.
-During development, we used the Brave Wallet.
-We have not verified functionality with other wallets, and MetaMask is *not* supported due to transaction signing limitation.
+You must also have a compatible wallet installed in your browser that is configured to interact with the Ethereum Sepolia testnet.
+This application requires a wallet capable of signing transactions without broadcasting them to the network.
+We used the Brave Wallet during development.
+We have not verified compatibility with other wallets, and MetaMask is *not* supported due to transaction signing limitations.
 
 # Directory structure
 
