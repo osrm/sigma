@@ -71,3 +71,34 @@ NEXT_PUBLIC_API_ENDPOINT = http://localhost:3010
 ```
 
 `NEXT_PUBLIC_API_ENDPOINT` points to the HTTP API server described in the previous section above.
+
+
+To start the frontend, first navigate to the `frontend` directory and install the required packages:
+
+```shell
+npm install
+```
+Then run the local HTTP server with the following command:
+
+```shell
+npm run dev
+```
+
+After that, you can open `http://localhost:3000` in your browser to view the application.
+
+To use the application, you will need ETH and USDC on the Ethereum Sepolia testnet.
+
+To obtain testnet ETH and USDC, you can use the following faucet services (but not limited to them):
+
+- [Alchemy Faucet](https://www.alchemy.com/faucets/ethereum-sepolia)
+- [Google Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia)
+- [Circle Faucet](https://faucet.circle.com/)
+
+Additionally, a compatible wallet must be installed in your browser.
+
+This application requires a wallet that can sign transactions without broadcasting them to the network.
+
+During development, we used the Brave Wallet.
+
+We have not verified functionality with other wallets, and MetaMask is *not* supported due to transaction signing failure.
+

@@ -322,7 +322,7 @@ app.post('/deposit', async (req: Request, res: Response) => {
     try {
         const { walletId, amount } = req.body;
 
-        console.log(`POST /deposit`);
+        console.log(`POST /deposit - walletId ${walletId}, amount ${amount}`);
 
         if (!walletId || !amount) {
             res.status(400).json({
@@ -473,9 +473,11 @@ app.post('/withdraw', async (req: Request, res: Response) => {
             transaction.add(deactivateIx);
         }
 
+        const amountBn = new anchor.BN(amount);
+
         // withdraw from vault
         const withdrawIx = await program.methods.withdraw(
-            new anchor.BN(amount),
+            amountBn,
         )
             .accounts({
                 vault,
@@ -491,6 +493,27 @@ app.post('/withdraw', async (req: Request, res: Response) => {
             .instruction();
 
         transaction.add(withdrawIx);
+
+        console.log(`amount type: ${typeof amount}, instanceof BN: ${amount instanceof anchor.BN}`);
+        console.log(`amount ${amountBn.toNumber()} vs ${vaultAccount.amount.toNumber()}`)
+        console.log(`amountBn.eq(vaultAccount.amount) ${amountBn.eq(vaultAccount.amount)}`)
+
+        if (amountBn.eq(vaultAccount.amount)) {
+        //if (amount === vaultAccount.amount) {
+            const closeVaultIx = await program.methods.closeVault(
+            )
+              .accounts({
+                vault,
+                // @ts-ignore Object literal may only specify known properties, ...
+                vaultType,
+                owner: walletPubkey,
+                payer: payerKeypair.publicKey,
+                systemProgram: anchor.web3.SystemProgram.programId,
+              })
+              .instruction();
+
+              transaction.add(closeVaultIx);
+        }
 
         const withdrawTxSig = await executeTransaction(transaction, walletId, `Withdraw by ${wallet.refId?.substring(0, 10)}`);
 

@@ -163,10 +163,17 @@ const Home: NextPage = () => {
   // Add function to fetch balance
   const fetchBalance = async () => {
     try {
+      if (!signer?.address) {
+        return;
+      }
+      const prevBalance = depositBalance;
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/balance/${signer?.address}`);
       const data = await response.json();
-      setDepositBalance(data.balance || '0.00');
-      addLine(`Balance updated: ${data.balance} USDC`);
+      const newBalance = data.balance || '0.00';
+      if (prevBalance !== newBalance) {
+        setDepositBalance(newBalance);
+        addLine(`Balance updated: ${newBalance} USDC`);
+      }
     } catch (error) {
       console.error('Error fetching balance:', error);
       addLine('Failed to fetch balance');
@@ -244,6 +251,16 @@ const Home: NextPage = () => {
       throw new Error(`Failed to execute deposit transaction: ${depositResponse.statusText}`);
     }
     addLine(`Completed deposit to Windfall`);
+
+    const startTime = Date.now();
+    const depositAmount = BigInt(amt.toString());
+    while (Date.now() - startTime < 15000) { // 15 seconds timeout
+      await fetchBalance();
+      if (BigInt(depositBalance) >= depositAmount) {
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second interval
+    }
   };
 
   const handleWithdraw = async () => {
@@ -304,12 +321,14 @@ const Home: NextPage = () => {
       nativeGas,
     });
     addLine(`Completed transfer to Ethereum`);
+
+    await fetchBalance();
   };
 
   return (
     <div className={styles.container}>
       <Head>
-        <title>Windfall for EVM</title>
+        <title>Windfall Powered by Wormhole</title>
         <link href="/favicon.ico" rel="icon" />
       </Head>
 
