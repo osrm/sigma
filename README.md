@@ -8,6 +8,8 @@ End users can deposit USDC into the Windfall `vault` program deployed on Solana 
 
 Note that if bridging to Solana is available, tokens other than USDC can be supported, and thanks to Wormhole, various source chains can be supported for bridging, not limited to EVMs.
 
+The main goal of Windfall is to promote onboarding to Web3, especially Solana, through gamification, and cross-chain deposits play a crucial role in this mission.
+
 Here's how to use the frontend and understand the general flow of operations:
 
 - The end user connects to an EVM-compatible wallet *A* (we used Brave Wallet for testing)
@@ -27,7 +29,11 @@ Here's how to use the frontend and understand the general flow of operations:
 
 Please refer to the [sequence diagrams at the end of this README](#diagrams) for more details.
 
-Note that we plan to integrate and replace this architecture with [Wormhole Composable Intents Swap](https://wormhole.com/blog/wormhole-launches-era3-adding-intents-protocol-and-major-user-experience) once it becomes available.
+We plan to integrate and replace (some part of) this architecture with [Wormhole Composable Intents Swap](https://wormhole.com/blog/wormhole-launches-era3-adding-intents-protocol-and-major-user-experience) once it becomes available.
+
+In Windfall, users receive points based on various factors such as the amount deposited and the number of new users acquired through referrals.
+Based on these points, users can participate in on-chain lottery draws to receive reward distributions.
+While this project focuses on facilitating cross-chain deposits and is not currently integrated into the Windfall portal, integration should be straightforward since points can be awarded by periodically taking snapshots of the Solana accounts created during deposits.
 
 # Demonstration
 
