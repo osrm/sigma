@@ -49,22 +49,25 @@ The demo frontend is deployed at a temporary domain [https://test.softgate.co.jp
 You can use this demonstration site to evaluate the project and observe how it works.
 For instructions on using this site, please refer to the demo video submitted for the hackathon.
 
+Due to operating on devnet, deposit and withdrawal processes take a relatively long time.
+Therefore, you may want to check the console output in your browser's developer tools to see what is going on in the background.
+
 The backend API server is deployed at [https://api.softgate.co.jp/sigma](https://api.softgate.co.jp/sigma).
-The frontend mentioned above is configured to work with this backend API server.
+The demo frontend mentioned above is configured to work with this backend API server.
 
 The system operates on the Ethereum Sepolia testnet and Solana devnet.
 To perform bridge operations, you will need ETH and USDC on the Sepolia testnet.
 
 You can obtain testnet ETH and USDC through the following faucet services (among others) <a id="faucets">:</a>
 
-- [Alchemy Faucet](https://www.alchemy.com/faucets/ethereum-sepolia) (ETH)
 - [Google Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) (ETH)
+- [Alchemy Faucet](https://www.alchemy.com/faucets/ethereum-sepolia) (ETH)
 - [Circle Faucet](https://faucet.circle.com/) (USDC)
 
 You must also have a compatible wallet installed in your browser that is configured to interact with the Ethereum Sepolia testnet.
 This application requires a wallet capable of signing transactions without broadcasting them to the network.
 We used the Brave Wallet during development.
-We have not verified compatibility with other wallets, and MetaMask is *not* supported due to transaction signing limitations.
+We have not verified compatibility with other wallets, and MetaMask is *not* supported due to transaction signing limitations at this time.
 
 # Directory structure
 
@@ -73,7 +76,7 @@ The `frontend` directory contains all the source code for the web application in
 The `api` directory contains the source code for the backend API server. Since the backend requires Circle Web3 Services API keys and other configurations, we recommend using the test server provided by Windfall.
 
 The `program` directory contains the source code for a Solana program called `vault`.
-While the `vault` program was copied from another repository and therefore doesn't have much commit history here, development of the `vault` program in the other repository began after the SIGMA Sprint period started.
+While the `vault` program was copied from another repository and therefore doesn't have much commit history here, development of the `vault` program in the other repository began after the SIGMA Sprint period started, as shown in the figure below.
 
 ![Commit History](Commit%20History.png)
 
