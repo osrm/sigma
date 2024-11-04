@@ -2,11 +2,15 @@
 
 We are participating in [Wormhole SIGMA Sprint](https://sigma.wormhole.com/sprint) with this project.
 
-This project implements a mechanism for depositing USDC directly from chains like Ethereum to Windfall on Solana, using the Wormhole TS SDK and Circle CCTP USDC Transfer.
+This project implements a mechanism for depositing USDC directly from chains like Ethereum to Windfall on Solana, utilizing the following components / technologies:
+
+- Wormhole TS SDK
+- Circle CCTP USDC Transfer
+- Circle Web3 Services (dev-controlled Programmable Wallet)
 
 End users can deposit USDC into the Windfall `vault` program deployed on Solana and access services provided by Windfall by simply signing Ethereum transactions.
 
-Note that if bridging to Solana is available, tokens other than USDC can be supported, and thanks to Wormhole, various source chains can be supported for bridging, not limited to EVMs.
+Note that as long as bridging to Solana is available, tokens other than USDC can be supported, and thanks to Wormhole, various source chains can be supported for bridging, not limited to EVM chains.
 
 The main goal of Windfall is to promote onboarding to Web3, especially Solana, through gamification, and cross-chain deposits play a crucial role in this mission.
 
@@ -33,7 +37,8 @@ We plan to integrate and replace (some part of) this architecture with [Wormhole
 
 In Windfall, users receive points based on various factors such as the amount deposited and the number of new users acquired through referrals.
 Based on these points, users can participate in on-chain lottery draws to receive reward distributions.
-While this project focuses on facilitating cross-chain deposits and is not currently integrated into the Windfall portal, integration should be straightforward since points can be awarded by periodically taking snapshots of the Solana accounts created during deposits.
+
+As such, while this project focuses on facilitating cross-chain deposits and is not currently integrated into the Windfall portal, integration should be straightforward since points can be awarded by periodically taking snapshots of the Solana accounts created during deposits regardless of the source of deposited funds.
 
 # Demonstration
 
