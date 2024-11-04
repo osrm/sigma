@@ -6,6 +6,8 @@ import { AnchorProvider, Program, Wallet } from '@coral-xyz/anchor';
 import * as anchor from '@coral-xyz/anchor';
 import idl from "./vault.json";
 import { Vault } from "./vault";
+// Using `idl` directly causes type mismatch errors when creating Program object, but these can be safely ignored.
+// Using `idl_object` avoids these type mismatch errors.
 const idl_string = JSON.stringify(idl);
 const idl_object = JSON.parse(idl_string);
 
