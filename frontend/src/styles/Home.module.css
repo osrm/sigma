@@ -155,26 +155,8 @@
   margin-left: 8px;
 }
 
-/* .bridgeButton {
-  width: 100%;
-  padding: 12px;
-  background: #9945FF;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.bridgeButton:hover {
-  background: #8035d0;
-  transform: translateY(-1px);
-} */
-
 .bridgeButton {
   width: 100%;
-    /* 既存のスタイル */
   background: linear-gradient(to right, #4f46e5, #3b82f6);
   color: white;
   padding: 12px 24px;
@@ -191,8 +173,8 @@
 }
 
 .bridgeButton:disabled {
-  background: #e5e7eb;  /* より明るいグレー */
-  color: #9ca3af;       /* テキストをグレーアウト */
+  background: #e5e7eb;  /* lighter gray */
+  color: #9ca3af;       /* grayed out text */
   cursor: not-allowed;
   transform: none;
   box-shadow: none;

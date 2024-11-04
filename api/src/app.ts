@@ -48,7 +48,7 @@ const circleClient = initiateDeveloperControlledWalletsClient({
 const cors = require('cors');
 
 // TODO
-// - Manage EVM->Solana wallet associations in local/backend KV store
+// For scalability, EVM-to-Solana wallet associations should be managed by a backend KV store rather than Programmable Wallet's `refId` attribute.
 
 async function findAssociatedWallet(address: string) {
     const wallets = await circleClient.listWallets({ blockchain: BLOCKCHAIN as Blockchain });
@@ -94,16 +94,15 @@ async function latestBlock(
     return rpc.getLatestBlockhash(commitment ?? rpc.commitment);
 }
 
-
 const app = express();
 app.use(express.json());
 app.use(cors({
-    origin: '*', // または '*' for development
+    origin: '*',
     methods: ['GET', 'PUT', 'POST'],
     allowedHeaders: ['Content-Type', 'Accept']
 }));
 
-// Search for a wallet associated with the address.
+// Search for a wallet associated with the source address.
 // If not found, associate the address with a new wallet, and return the wallet ID in either case.
 app.get('/wallet/:address', async (req: Request, res: Response) => {
     try {
@@ -127,6 +126,17 @@ app.get('/wallet/:address', async (req: Request, res: Response) => {
     }
 });
 
+function setupProgram() {
+    const connection = getConnection();
+    const anchorWallet = new Wallet(payerKeypair);
+    const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
+    anchor.setProvider(provider);
+
+    const program = new Program<Vault>(idl_object, provider);
+
+    return { connection, anchorWallet, provider, program };
+}
+
 // Get user's deposit amount with Windfall by looking up source address
 app.get('/balance/:address', async (req: Request, res: Response) => {
     try {
@@ -138,12 +148,7 @@ app.get('/balance/:address', async (req: Request, res: Response) => {
             const walletPubkey = new PublicKey(wallet.address);
             const vaultType = getVaultType();
 
-            const connection = getConnection();
-            const anchorWallet = new Wallet(payerKeypair);
-            const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
-            anchor.setProvider(provider);
-
-            const program = new Program<Vault>(idl_object, provider)
+            const { program } = setupProgram();
 
             const [vault, _] = PublicKey.findProgramAddressSync(
                 [
@@ -333,12 +338,7 @@ app.post('/deposit', async (req: Request, res: Response) => {
         const walletPubkey = new PublicKey(wallet.address);
         const vaultType = getVaultType();
 
-        const connection = getConnection();
-        const anchorWallet = new Wallet(payerKeypair);
-        const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
-        anchor.setProvider(provider);
-
-        const program = new Program<Vault>(idl_object, provider)
+        const { provider, program } = setupProgram();
 
         const [vault, _] = PublicKey.findProgramAddressSync(
             [
@@ -427,12 +427,7 @@ app.post('/withdraw', async (req: Request, res: Response) => {
         const walletPubkey = new PublicKey(wallet.address);
         const vaultType = getVaultType();
 
-        const connection = getConnection();
-        const anchorWallet = new Wallet(payerKeypair);
-        const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
-        anchor.setProvider(provider);
-
-        const program = new Program<Vault>(idl_object, provider)
+        const { provider, program } = setupProgram();
 
         const [vault, _] = PublicKey.findProgramAddressSync(
             [
@@ -491,21 +486,22 @@ app.post('/withdraw', async (req: Request, res: Response) => {
             .instruction();
 
         transaction.add(withdrawIx);
-
+        
         if (amountBn.eq(vaultAccount.amount)) {
+            // close the vault if it will be empty
             const closeVaultIx = await program.methods.closeVault(
             )
-              .accounts({
-                vault,
-                // @ts-ignore Object literal may only specify known properties, ...
-                vaultType,
-                owner: walletPubkey,
-                payer: payerKeypair.publicKey,
-                systemProgram: anchor.web3.SystemProgram.programId,
-              })
-              .instruction();
+                .accounts({
+                    vault,
+                    // @ts-ignore Object literal may only specify known properties, ...
+                    vaultType,
+                    owner: walletPubkey,
+                    payer: payerKeypair.publicKey,
+                    systemProgram: anchor.web3.SystemProgram.programId,
+                })
+                .instruction();
 
-              transaction.add(closeVaultIx);
+            transaction.add(closeVaultIx);
         }
 
         const withdrawTxSig = await executeTransaction(transaction, walletId, `Withdraw by ${wallet.refId?.substring(0, 10)}`);
