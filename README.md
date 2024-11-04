@@ -13,7 +13,7 @@ Here's how to use the frontend and understand the general flow of operations:
 - The end user connects to an EVM-compatible wallet *A* (we used Brave Wallet for testing)
 - The backend creates a Circle Programmable Wallet *X* on Solana that is linked to wallet *A*
 - When a user initiates a deposit:
-  - Wallet *A* signs an EVM-side USDC transfer transaction to initiate the transfer
+  - Wallet *A* signs an EVM-side USDC transfer transaction to start cross-chain bridging
   - The system waits for Circle Attestation
   - Programmable Wallet *X* signs a Solana-side token receive transaction
   - Programmable Wallet *X* signs a Solana-side Windfall deposit transaction
@@ -24,6 +24,10 @@ Here's how to use the frontend and understand the general flow of operations:
   - Programmable Wallet *X* signs a Solana-side USDC transfer transaction
   - The system waits for Circle Attestation
   - Wallet *A* signs an EVM-side USDC receive transaction
+
+Please refer to the [sequence diagrams at the end of this README](#diagrams) for more details.
+
+Note that we plan to integrate and replace this architecture with [Wormhole Composable Intents Swap](https://wormhole.com/blog/wormhole-launches-era3-adding-intents-protocol-and-major-user-experience) once it becomes available.
 
 # Demonstration
 
@@ -40,7 +44,7 @@ The frontend mentioned above is configured to work with this backend API server.
 The system operates on the Ethereum Sepolia testnet and Solana devnet.
 To perform bridge operations, you will need ETH and USDC on the Sepolia testnet.
 
-You can obtain testnet ETH and USDC through the following faucet services (among others):
+You can obtain testnet ETH and USDC through the following faucet services (among others) <a id="faucets">:</a>
 
 - [Alchemy Faucet](https://www.alchemy.com/faucets/ethereum-sepolia) (ETH)
 - [Google Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) (ETH)
@@ -66,7 +70,7 @@ While the `vault` program was copied from another repository and therefore doesn
 
 ## Frontend
 
-Create `frontend/.env` and specify settings like this:
+Create `frontend/.env` file and specify settings like this:
 
 ```shell
 NEXT_PUBLIC_ENABLE_TESTNETS = true
@@ -74,6 +78,7 @@ NEXT_PUBLIC_API_ENDPOINT = http://localhost:3010
 ```
 
 `NEXT_PUBLIC_API_ENDPOINT` points to the HTTP API server described in the next section below.
+If you want to use the API server provided by Windfall for demonstration purposes, specify `https://api.softgate.co.jp/sigma`.
 
 To start the frontend, first navigate to the `frontend` directory and install the required packages:
 
@@ -88,7 +93,7 @@ npm run dev
 
 After that, you can access the application by opening `http://localhost:3000` in your browser.
 
-If you need testnet ETH and USDC, you can obtain them through the faucet services listed above.
+If you need testnet ETH and USDC, you can obtain them through the faucet services [listed above](#faucets).
 
 ## Backend (API Server)
 
@@ -122,6 +127,13 @@ TOKEN_MINT = 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
 VAULT_TYPE = 2zHQowNu91LJrfaWfpNDMxFXr6DxNYXksYV24UbhBwRX
 ```
 
+The account specified by the private key in `SOL_PAYER` needs to hold a small amount of SOL to cover transaction fees.
+For Solana Devnet, assuming you have Solana CLI installed, you can obtain SOL using the following command:
+
+```shell
+solana airdrop 5 <SOL_PAYER_PUBKEY_OR_SOL_PAYER_KEYFILE_PATH>
+```
+
 ## Solana Program
 
 ```shell
@@ -133,8 +145,23 @@ anchor test
 As of this writing, the `vault` program is deployed on Solana devnet at `DcnDr4dPpXWHkmS8TSXG3bL9dnshCVRRzQi4gTndtUsG`.
 It is recommended to use the deployed program as is in most cases.
 
-# Sequence diagrams
+# <a id="diagrams">Sequence diagrams</a>
+
+## Deposit
+
+When making a deposit, the following sequence of operations is executed.
+Most of these are handled internally, and the end user only needs to:
+
+- Specify the USDC token amount and click the "Deposit USDC" button
+- Sign the bridge transactions with their Ethereum wallet
 
 ![Deposit](Deposit-Sequence.png)
+
+## Withdrawal
+
+Similarly, the withdrawal process is streamlined to minimize user operations:
+
+- Specify the USDC token amount and click the "Withdraw USDC" button
+- Sign the receipt transaction with their Ethereum wallet
 
 ![Withdrawal](Withdraw-Sequence.png)
