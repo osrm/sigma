@@ -50,7 +50,7 @@ You can use this demonstration site to evaluate the project and observe how it w
 For instructions on using this site, please refer to the demo video submitted for the hackathon.
 
 Due to operating on devnet, deposit and withdrawal processes take a relatively long time.
-Therefore, you may want to check the console output in your browser's developer tools to see what is going on in the background.
+Therefore, you may want to check the console output in your browsers developer tools to see what is going on in the background.
 
 The backend API server is deployed at [https://api.softgate.co.jp/sigma](https://api.softgate.co.jp/sigma).
 The demo frontend mentioned above is configured to work with this backend API server.
